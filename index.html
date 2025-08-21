@@ -745,5 +745,162 @@ document.getElementById('resetAll').onclick=resetAll;
 compSel.addEventListener('change', ()=>{ compPanel.style.display = compSel.value==='multi' ? 'block' : 'none'; });
 compPanel.style.display='none';
 </script>
+<script>
+/* MMC – 演出アドオン v4（壊さない版）
+   研究“上昇連”ピルをテーブルの「下」に表示（行の下側に絶対配置、wrapに下パディングを付与）
+*/
+(function(){
+  /* ===== 共有CSS ===== */
+  const css = `
+  /* フリップ & 呼吸 */
+  .cell.flip-in{animation:flipIn .28s ease;transform-style:preserve-3d;}
+  @keyframes flipIn{0%{transform:rotateY(-90deg) scale(.98);opacity:.6;}100%{transform:rotateY(0) scale(1);opacity:1;}}
+  .numdot.current{box-shadow:0 0 0 2px #6a8cff inset;animation:breathe 1.6s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+  .pulse{animation:pulse .28s ease;}@keyframes pulse{50%{transform:scale(1.06);}}
+
+  /* 研究：セル内の淡い帯（数字を邪魔しない） */
+  .tbl td{ position:relative; overflow:visible; }
+  .research-run{ background:linear-gradient(90deg, rgba(106,140,255,.14), rgba(106,140,255,.04)); }
+  .run-start{ border-top-left-radius:10px; border-bottom-left-radius:10px; }
+  .run-end{ border-top-right-radius:10px; border-bottom-right-radius:10px; }
+  .run-shine::before{ content:""; position:absolute; inset:0; background:linear-gradient(120deg, transparent 0, rgba(255,255,255,.65) 10%, transparent 20%);
+    transform:translateX(-100%); animation:shine 900ms ease forwards; pointer-events:none; }
+  @keyframes shine{ to{ transform:translateX(110%);} }
+
+  /* wrapの下に余白を確保（ピルの高さ分） */
+  #researchTableWrap{ position:relative; padding-bottom:28px; }
+
+  /* テーブルの下に載せる“🧪+合計”ピル（数字に被らない） */
+  .run-pill{ position:absolute; height:18px; display:inline-flex; align-items:center; gap:6px;
+    padding:0 8px; font-size:11px; line-height:18px; border-radius:999px;
+    background:#f6f9ff; border:1px solid #cfd5ea; color:#29407a; white-space:nowrap;
+    box-shadow:0 1px 0 rgba(0,0,0,.03); pointer-events:none; }
+  .run-pill::after{ content:""; position:absolute; left:6px; right:6px; top:0; bottom:0; border-radius:999px;
+    box-shadow: inset 0 0 0 1px rgba(106,140,255,.15); }
+  .gain-pop{ position:absolute; transform:translateY(0); opacity:1; transition:transform .6s ease,opacity .6s; }
+  .gain-pop.anim{ transform:translateY(-18px); opacity:0; }
+  `;
+  const st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
+
+  /* ===== クリック演出（既存どおり） ===== */
+  document.addEventListener('pointerdown', e=>{
+    const cell=e.target.closest?.('.cell'); if(cell) document._lastClickedCell=cell;
+  });
+  document.addEventListener('click', e=>{
+    const cell=e.target.closest?.('.cell'); if(!cell) return;
+    cell.classList.add('flip-in'); setTimeout(()=>cell.classList.remove('flip-in'), 340);
+  });
+
+  /* ===== 基準値の呼吸 ===== */
+  const baselineEl = document.getElementById('baseline');
+  const baselineBar = document.getElementById('baselineBar');
+  function pulseBaseline(){ const host = baselineBar || baselineEl?.parentElement; if(!host) return; host.classList.add('pulse'); setTimeout(()=>host.classList.remove('pulse'), 300); }
+  if(baselineEl){
+    let prev = baselineEl.textContent.trim();
+    new MutationObserver(()=>{
+      const now = baselineEl.textContent.trim();
+      if(now!==prev){ pulseBaseline(); prev=now; }
+    }).observe(baselineEl,{childList:true,characterData:true,subtree:true});
+  }
+
+  /* ===== 研究：上昇連の可視化（ピルは表の下に） ===== */
+  function highlightResearch(){
+    const wrap=document.getElementById('researchTableWrap'); if(!wrap) return;
+    const tbl=wrap.querySelector('table'); if(!tbl) return;
+    const rows=tbl.querySelectorAll('tr'); if(rows.length<2) return;
+    const tds=[...rows[1].querySelectorAll('td')];
+
+    // 値配列
+    const vals=tds.map(td=>{const n=parseInt(td.textContent,10); return Number.isFinite(n)?n:null;});
+
+    // セル内の帯をリセット
+    tds.forEach(td=> td.classList.remove('research-run','run-start','run-end','run-shine'));
+    // 既存ピルを削除
+    wrap.querySelectorAll('.run-pill').forEach(el=>el.remove());
+
+    // 連を検出
+    let runStart=null; const runs=[]; // [s,e]
+    for(let i=0;i<vals.length;i++){
+      const v=vals[i], p=i>0?vals[i-1]:null, inc=(v!=null&&p!=null&&v>p);
+      if(inc){ if(runStart==null) runStart=i-1; }
+      else{ if(runStart!=null && i-runStart>=2){ runs.push([runStart,i-1]); } runStart=null; }
+    }
+    if(runStart!=null && vals.length-runStart>=2){ runs.push([runStart,vals.length-1]); }
+
+    // セルへ帯、下にピル配置
+    const wrapRect = wrap.getBoundingClientRect();
+    const rowRect  = rows[1].getBoundingClientRect();
+    runs.forEach(([s,e])=>{
+      for(let k=s;k<=e;k++){
+        tds[k].classList.add('research-run', (k===s?'run-start':'run-end'), 'run-shine');
+        setTimeout(()=>tds[k].classList.remove('run-shine'), 1000);
+      }
+      // ピル（🧪 + 三角数 = L*(L+1)/2）
+      const L = e - s + 1;
+      const tri = (L*(L+1))/2;
+      const sRect = tds[s].getBoundingClientRect();
+      const eRect = tds[e].getBoundingClientRect();
+      const pill = document.createElement('div');
+      pill.className='run-pill';
+      pill.textContent = `🧪 +${tri}`;
+      // 横幅：区間全体
+      const left = sRect.left - wrapRect.left + 2;
+      const right= eRect.right - wrapRect.left - 2;
+      pill.style.left  = left + 'px';
+      pill.style.width = Math.max(36, right - left) + 'px';
+      // 縦位置：行のすぐ下（wrapに padding-bottom を用意してあるので重ならない）
+      const top = rowRect.bottom - wrapRect.top + 6;
+      pill.style.top = top + 'px';
+      wrap.appendChild(pill);
+    });
+  }
+  // 初期＆更新＆リサイズで再計算
+  const researchWrap=document.getElementById('researchTableWrap');
+  function schedule(){ setTimeout(highlightResearch,0); }
+  highlightResearch();
+  if(researchWrap){
+    new MutationObserver(schedule).observe(researchWrap,{childList:true,subtree:true});
+  }
+  window.addEventListener('resize', schedule);
+
+  /* ===== リソース飛来（既存どおり） ===== */
+  const resIds=[['rFood','🍞'],['rSci','🧪'],['rInd','⚙'],['rArt','🖋'],['rDip','👍'],['rInv','💡']];
+  function flyIcon(fromEl,toEl,glyph){
+    const aRect = fromEl?.getBoundingClientRect?.();
+    const a = aRect || {left:innerWidth/2, top:innerHeight/2, width:0, height:0};
+    const b = toEl.getBoundingClientRect();
+    const span=document.createElement('div');
+    span.textContent=glyph;
+    span.style.cssText=`position:fixed;left:${a.left+a.width/2}px;top:${a.top+a.height/2}px;transition:transform .6s ease,opacity .6s;z-index:9999;pointer-events:none;font-size:18px`;
+    document.body.appendChild(span);
+    requestAnimationFrame(()=>{
+      span.style.transform=`translate(${(b.left+b.width/2)-(a.left+a.width/2)}px,${(b.top+b.height/2)-(a.top+a.height/2)}px) scale(.9)`;
+      span.style.opacity='.2';
+    });
+    setTimeout(()=>span.remove(),650);
+  }
+  resIds.forEach(([id,glyph])=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.dataset.prev = el.textContent.trim();
+    const host = el.parentElement;
+    new MutationObserver(()=>{
+      const prev = parseInt(el.dataset.prev||'0',10)||0;
+      const now  = parseInt(el.textContent.trim()||'0',10)||0;
+      if(now>prev){
+        const diff=Math.min(6, now-prev);
+        for(let i=0;i<diff;i++){
+          flyIcon(document._lastClickedCell, host, glyph);
+          const pop=document.createElement('span'); pop.className='gain-pop anim'; pop.textContent=`${glyph}+1`;
+          host.appendChild(pop); setTimeout(()=>pop.remove(),650);
+        }
+      }
+      el.dataset.prev=String(now);
+    }).observe(el,{childList:true,characterData:true,subtree:true});
+  });
+
+})();
+</script>
+
 </body>
 </html>
