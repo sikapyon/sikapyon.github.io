@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mini Mini Civilization – トラッカー＋教育UI強化版</title>
+<title>Mini Mini Civilization – 強化版</title>
 <style>
   :root{ --size:64px; --gap:8px; }
   body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:#222;
@@ -38,12 +38,10 @@
   .grey{ background:#d7dbe8; }
   body.era-5 .white{ background:#152554; } body.era-5 .grey{ background:#23305a; }
   .chosen{ outline:3px solid #6a8cff; }
-  .tracks{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .section-title{ font-weight:700; margin:6px 0; }
-  .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-  .small{ font-size:12px; color:#5b6175;} body.era-5 .small{ color:#b7c3ff;}
+
   .boardWrap{ position:relative;}
   svg.lines{ position:absolute; inset:0; pointer-events:none;}
+
   .res{ display:flex; gap:10px; flex-wrap:wrap; }
   .res > div{ position:relative; background:#f3f5ff; border:1px solid #dfe3f7; border-radius:10px; padding:6px 10px; }
   body.era-5 .res > div{ background:#182550; border-color:#2c3a63; }
@@ -59,18 +57,23 @@
   .tbl th{ background:#f3f5ff; } body.era-5 .tbl th{ background:#1b2a59; border-color:#2d3a61; }
   body.era-5 .tbl td{ border-color:#2d3a61; }
 
-  /* 基準値バー */
+  .small{ font-size:12px; color:#5b6175;} body.era-5 .small{ color:#b7c3ff;}
+  .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+
+  /* 基準値バー & ナンバーセレクター */
   #baselineBar{ margin-top:6px; }
   #baselineBar .chip{ display:inline-block; padding:2px 6px; border:1px solid #cfd5ea; border-radius:999px; margin-right:6px; background:#f6f8ff; transition:background .2s; }
-  #baselineBar.bump .chip:first-child{ background:#e9f0ff; }
-  body.era-5 #baselineBar .chip{ background:#16244f; border-color:#2c3a61; }
+  #numSelector{ margin-top:6px; display:grid; grid-template-columns:repeat(25, 26px); gap:6px; }
+  .numdot{ width:26px; height:26px; border-radius:999px; display:grid; place-items:center; font-size:12px; background:#fff; border:2px solid #9fb3ff; color:#2a3b6e; }
+  .numdot.used{ background:#9fb3ff; color:#fff; }
+  .numdot.current{ outline:3px solid #ffcc66; }
 
-  /* 文明評価バナー（カード固定・高コントラスト） */
+  /* 文明評価バナー（カード固定） */
   .score-banner{ background:#ffffff !important; color:#111 !important; border:2px solid #2f3545 !important; border-radius:14px !important; box-shadow:0 6px 18px rgba(0,0,0,.18) !important; margin-top:8px; padding:10px; }
   .score-sub{ color:#333 !important; }
   .score-badge{ background:#f5f7ff !important; border:1px solid #2f3545 !important; color:#000 !important; padding:2px 8px; border-radius:999px; margin-right:8px; font-weight:800; }
 
-  /* 線のドローアニメ＋交差火花 */
+  /* 線演出 */
   .seg-draw{ stroke-dasharray:var(--len); stroke-dashoffset:var(--len); animation:draw .35s ease forwards; }
   @keyframes draw{ to{ stroke-dashoffset:0; } }
   .spark{ fill:#ffd54a; opacity:0; animation:spark .6s ease forwards; }
@@ -81,7 +84,7 @@
   .gain-pop.anim{ animation:popUp .6s ease forwards; }
   @keyframes popUp{ 0%{opacity:0; transform:translate(-50%,10px) scale(.9);} 20%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-18px) scale(1);} }
 
-  /* UNDO履歴（カード固定・高コントラスト） */
+  /* UNDO履歴（カード固定） */
   #historyList{ display:flex; flex-direction:column; gap:6px; max-height:220px; overflow:auto; }
   .hist-item{ background:#ffffff !important; color:#111 !important; border:1px solid #2f3545 !important; border-radius:12px !important; box-shadow:0 4px 10px rgba(0,0,0,.15) !important; transition:transform .12s ease, box-shadow .12s ease; padding:6px 8px; }
   .hist-item:hover{ transform:translateY(-1px); box-shadow:0 8px 18px rgba(0,0,0,.22); }
@@ -92,14 +95,16 @@
   #cityBar{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
   #cityRow{ font-size:22px; letter-spacing:2px; }
 
-  /* 外交/芸術/発明のチェック式トラッカー */
-  .trackbox{ display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; margin-top:8px;}
-  .ticks{ display:flex; gap:3px; align-items:center; flex-wrap:wrap; }
-  .tick{ width:16px; height:16px; border:1px solid #b8c0e6; border-radius:3px; background:#fff; position:relative; }
-  .tick.filled::after{ content:""; position:absolute; inset:3px; background:#6aa8ff; border-radius:2px; }
-  .tick.checked::after{ content:"✓"; position:absolute; inset:0; font-size:12px; color:#fff; display:grid; place-items:center; background:#6aa8ff; border-radius:2px; }
+  /* 縦並びトラッカー（スタック） */
+  .trackbox{ display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; margin-top:10px;}
+  .trackcol > b{ display:block; margin-bottom:6px; }
+  .ticks.stack{ display:grid; grid-auto-flow:column; grid-auto-columns:min-content; grid-template-rows: repeat(var(--rows), 18px); gap:4px 8px; }
+  .tick{ width:16px; height:16px; border:1px solid #b8c0e6; border-radius:3px; background:#fff; }
+  .tick.filled{ background:#6aa8ff; }
+  .tick.checked{ background:#6aa8ff; box-shadow: inset 0 0 0 2px #fff; }
   body.era-5 .tick{ background:#152554; border-color:#2d3a61; }
-  body.era-5 .tick.filled::after, body.era-5 .tick.checked::after{ background:#7fb2ff; }
+  body.era-5 .tick.filled, body.era-5 .tick.checked{ background:#7fb2ff; }
+
   .inv-bulb{ width:20px; height:20px; border-radius:6px; border:1px solid #b8c0e6; display:grid; place-items:center; background:#fff; }
   .inv-bulb.on{ background:#fff7cc; border-color:#e8d067; }
   .inv-bulb.used{ background:#d9deef; color:#7a839f; }
@@ -111,12 +116,13 @@
   .confetti{ position:absolute; width:6px; height:10px; opacity:.9; }
   @keyframes fall { to { transform: translateY(120px) rotate(360deg); opacity:.2; } }
 
-  /* 教育UI（カード化） */
+  /* 教育カード（自動ハイライト） */
   .edu-grid{ display:grid; grid-template-columns:repeat(5, minmax(120px,1fr)); gap:10px; margin-top:8px; }
-  .edu-card{ background:#ffffff; border:1px solid #cfd5ea; border-radius:12px; padding:10px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,.06); }
-  body.era-5 .edu-card{ background:#0f1a37; border-color:#2c3a61; }
+  .edu-card{ background:#ffffff; border:1px solid #cfd5ea; border-radius:12px; padding:10px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,.06); transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
   .edu-range{ font-weight:800; margin-bottom:6px; }
   .edu-gain{ display:flex; justify-content:center; gap:10px; font-weight:700; }
+  .edu-card.active{ transform:translateY(-2px); border-color:#6a8cff; box-shadow:0 6px 16px rgba(106,140,255,.28); }
+  body.era-5 .edu-card{ background:#0f1a37; border-color:#2c3a61; }
 </style>
 </head>
 <body class="era-1">
@@ -144,7 +150,12 @@
       <div id="board" class="grid" aria-label="5x5 board"></div>
       <svg id="lines" class="lines"></svg>
     </div>
+
+    <!-- 基準値・使用状況 -->
     <div id="baselineBar" class="small mono"></div>
+    <!-- ナンバーセレクター（1〜25 丸トークン） -->
+    <div id="numSelector" aria-label="number selector 1..25"></div>
+
     <div id="cityBar" class="small"><b>発展度:</b> <span id="cityRow"></span></div>
     <div class="small">1手目は自由、以降は<strong>隣接8方向</strong>のみ。未記入マス（白/灰）を選ぶと自動で「1」を書き込み、その数で判定（資源なし）。<span id="pendingHint" class="small"></span></div>
   </section>
@@ -161,7 +172,7 @@
       <div>💡 発明(未使用): <span id="rInv">0</span></div>
     </div>
 
-    <!-- 外交・芸術・発明のチェック式トラッカー -->
+    <!-- 縦並びトラッカー -->
     <div id="trackVisual" class="trackbox"></div>
 
     <div class="tracks">
@@ -179,13 +190,12 @@
     </div>
 
     <div class="section-title">教育（基準以下）</div>
-    <!-- 教育カード -->
     <div class="edu-grid">
-      <div class="edu-card"><div class="edu-range">1–5</div><div class="edu-gain">⚙+1  /  🖋+2</div></div>
-      <div class="edu-card"><div class="edu-range">6–10</div><div class="edu-gain">⚙+2  /  🖋+1</div></div>
-      <div class="edu-card"><div class="edu-range">11–15</div><div class="edu-gain">⚙+4  /  🖋+2</div></div>
-      <div class="edu-card"><div class="edu-range">16–20</div><div class="edu-gain">⚙+6  /  🖋+2</div></div>
-      <div class="edu-card"><div class="edu-range">21–25</div><div class="edu-gain">⚙+8  /  🖋+3</div></div>
+      <div class="edu-card" data-range="1-5"><div class="edu-range">1–5</div><div class="edu-gain">⚙+1  /  🖋+2</div></div>
+      <div class="edu-card" data-range="6-10"><div class="edu-range">6–10</div><div class="edu-gain">⚙+2  /  🖋+1</div></div>
+      <div class="edu-card" data-range="11-15"><div class="edu-range">11–15</div><div class="edu-gain">⚙+4  /  🖋+2</div></div>
+      <div class="edu-card" data-range="16-20"><div class="edu-range">16–20</div><div class="edu-gain">⚙+6  /  🖋+2</div></div>
+      <div class="edu-card" data-range="21-25"><div class="edu-range">21–25</div><div class="edu-gain">⚙+8  /  🖋+3</div></div>
     </div>
   </section>
 
@@ -255,11 +265,12 @@ const pendingHint = document.getElementById('pendingHint');
 const historyList = document.getElementById('historyList');
 const cityRow = document.getElementById('cityRow');
 const trackVisual = document.getElementById('trackVisual');
+const numSelector = document.getElementById('numSelector');
 const r = (id)=>document.getElementById(id);
 
 /* ===== ステータス ===== */
 const res = { food:0, sci:0, ind:0, art:0, dip:0, inv:0 };
-const stat = { invEarned:0, invSpent:0 }; // 総獲得/使用済（電球表示用）
+const stat = { invEarned:0, invSpent:0 }; // 総獲得/使用（電球アイコン表示用）
 function updRes(){ r('rFood').textContent=res.food; r('rSci').textContent=res.sci; r('rInd').textContent=res.ind; r('rArt').textContent=res.art; r('rDip').textContent=res.dip; r('rInv').textContent=res.inv; renderTracker(); }
 
 /* ポップ演出 */
@@ -289,6 +300,7 @@ let pendingGrey = null;
 let moveSnapshot = null;
 let snapshotStack = [];
 let moveHistory = [];
+let lastPicked = null;  // 直前の選択数（教育カードのハイライト用）
 
 /* 幾何 */
 function triangular(n){ return n*(n+1)/2; }
@@ -385,13 +397,21 @@ function buildResearchTable(){
   return tbl;
 }
 
-/* 基準バー・都市バー */
+/* 基準バー・都市バー・ナンバーセレクター */
 function renderBaselineBar(){
   const host = document.getElementById('baselineBar');
   const remaining=[]; for(let n=1;n<=25;n++) if(!usedNumbers.has(n)) remaining.push(n);
-  host.classList.remove('bump');
   host.innerHTML=`<span class="chip">基準: ${baseline}</span><span class="chip">使用: ${usedNumbers.size}/25</span><span class="rest">残り（未使用）: ${remaining.join(', ')||'なし'}</span>`;
-  requestAnimationFrame(()=>host.classList.add('bump'));
+  renderNumSelector();
+}
+function renderNumSelector(){
+  numSelector.innerHTML='';
+  for(let n=1;n<=25;n++){
+    const d=document.createElement('div'); d.className='numdot';
+    if(usedNumbers.has(n)) d.classList.add('used');
+    if(n===baseline) d.classList.add('current');
+    d.textContent=n; numSelector.appendChild(d);
+  }
 }
 function updateCityAndEra(){
   const sciEnd = calcScienceFromResearch();
@@ -409,28 +429,42 @@ function updateCityAndEra(){
   document.body.className = 'era-' + era;
 }
 
-/* チェック式トラッカー表示 */
+/* 縦並びトラッカー */
+function ticksStack(container, count, group, rows){
+  container.style.setProperty('--rows', rows);
+  const full=Math.floor(count/group), rest=count%group;
+  // フルグループ
+  for(let g=0; g<full; g++){
+    for(let k=0;k<group;k++){ const t=document.createElement('div'); t.className='tick checked'; container.appendChild(t); }
+  }
+  // 残り
+  for(let k=0;k<rest;k++){ const t=document.createElement('div'); t.className='tick filled'; container.appendChild(t); }
+  for(let k=rest;k<group;k++){ const t=document.createElement('div'); t.className='tick'; container.appendChild(t); }
+  // 余白（縦を揃える）
+  // ここではグループの列数は可変なので不要
+}
 function renderTracker(){
-  trackVisual.innerHTML = '';
-  // 👍 外交：5個ごと
-  const dipWrap=document.createElement('div'); dipWrap.innerHTML='<b>👍 外交</b>'; const dipTicks=document.createElement('div'); dipTicks.className='ticks';
-  const dip=res.dip, dFull=Math.floor(dip/5), dRest=dip%5;
-  for(let g=0; g<dFull; g++){ for(let k=0;k<5;k++){ const t=document.createElement('div'); t.className='tick checked'; dipTicks.appendChild(t); } dipTicks.appendChild(Object.assign(document.createElement('span'),{style:'width:8px'})); }
-  for(let k=0;k<dRest;k++){ const t=document.createElement('div'); t.className='tick filled'; dipTicks.appendChild(t); }
-  for(let k=dRest;k<5;k++){ const t=document.createElement('div'); t.className='tick'; dipTicks.appendChild(t); }
-  dipWrap.appendChild(dipTicks); trackVisual.appendChild(dipWrap);
-  // 🖋 芸術：4個ごと（満了で💡）
-  const artWrap=document.createElement('div'); artWrap.innerHTML='<b>🖋 芸術</b>'; const artTicks=document.createElement('div'); artTicks.className='ticks';
-  const art=res.art, aFull=Math.floor(art/4), aRest=art%4;
-  for(let g=0; g<aFull; g++){ for(let k=0;k<4;k++){ const t=document.createElement('div'); t.className='tick checked'; artTicks.appendChild(t); } artTicks.appendChild(Object.assign(document.createElement('span'),{style:'width:8px'})); }
-  for(let k=0;k<aRest;k++){ const t=document.createElement('div'); t.className='tick filled'; artTicks.appendChild(t); }
-  for(let k=aRest;k<4;k++){ const t=document.createElement('div'); t.className='tick'; artTicks.appendChild(t); }
-  artWrap.appendChild(artTicks); trackVisual.appendChild(artWrap);
-  // 💡 発明：総獲得（使用済みはグレー）
-  const invWrap=document.createElement('div'); invWrap.innerHTML='<b>💡 発明</b>'; const invRow=document.createElement('div'); invRow.className='ticks';
+  trackVisual.innerHTML='';
+  // 👍 外交（5段縦積み）
+  const dipCol=document.createElement('div'); dipCol.className='trackcol'; dipCol.innerHTML='<b>👍 外交</b>';
+  const dipTicks=document.createElement('div'); dipTicks.className='ticks stack'; ticksStack(dipTicks, res.dip, 5, 5); dipCol.appendChild(dipTicks); trackVisual.appendChild(dipCol);
+  // 🖋 芸術（4段縦積み）
+  const artCol=document.createElement('div'); artCol.className='trackcol'; artCol.innerHTML='<b>🖋 芸術</b>';
+  const artTicks=document.createElement('div'); artTicks.className='ticks stack'; ticksStack(artTicks, res.art, 4, 4); artCol.appendChild(artTicks); trackVisual.appendChild(artCol);
+  // 💡 発明（獲得/使用）
+  const invCol=document.createElement('div'); invCol.className='trackcol'; invCol.innerHTML='<b>💡 発明</b>';
+  const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px';
   const totalBulbs=Math.max(stat.invEarned, res.inv+stat.invSpent); const used=stat.invSpent;
-  for(let i=0;i<Math.max(1,totalBulbs);i++){ const b=document.createElement('div'); b.className='inv-bulb on'; b.textContent='💡'; if(i<used||totalBulbs===0) b.classList.add('used'); invRow.appendChild(b); }
-  invWrap.appendChild(invRow); trackVisual.appendChild(invWrap);
+  for(let i=0;i<Math.max(1,totalBulbs);i++){ const b=document.createElement('div'); b.className='inv-bulb on'; b.textContent='💡'; if(i<used||totalBulbs===0) b.classList.add('used'); row.appendChild(b); }
+  invCol.appendChild(row); trackVisual.appendChild(invCol);
+}
+
+/* 教育カードの自動ハイライト */
+function highlightEducation(val){
+  document.querySelectorAll('.edu-card').forEach(card=>{
+    const [a,b]=card.dataset.range.split('-').map(Number);
+    card.classList.toggle('active', val>=a && val<=b);
+  });
 }
 
 /* 初期生成 */
@@ -438,7 +472,7 @@ function buildBoard(){
   board.innerHTML=''; cells=[]; path=[]; lines.innerHTML='';
   baseline=12; usedNumbers=new Set([12]); frontierX.clear(); pendingGrey=null; pendingHint.textContent='';
   moveSnapshot=null; snapshotStack=[]; moveHistory=[]; renderHistory();
-  baselineEl.textContent=baseline; turnEl.textContent='0';
+  baselineEl.textContent=baseline; turnEl.textContent='0'; lastPicked=null; highlightEducation(0);
   for(let i=0;i<5;i++){
     cells[i]=[];
     for(let j=0;j<5;j++){
@@ -462,7 +496,8 @@ function renderResearch(){
   const row=document.createElement('div');
   for(let i=0;i<12;i++){
     const g = researchGain[i];
-    const label = (typeof research[i]==='number')? `#${i+1}【${research[i]}】` : `#${i+1} ${Object.entries(g).map(([k,v])=>({food:'🍞',sci:'🧪',ind:'⚙',art:'🖋',dip:'👍'}[k])+`+${v}`).join(' ')} に書く（空）`;
+    const show = (typeof research[i]==='number')? `【${research[i]}】` : '空';
+    const label = (typeof research[i]==='number') ? `#${i+1} ${show}` : `#${i+1} ${Object.entries(g).map(([k,v])=>({food:'🍞',sci:'🧪',ind:'⚙',art:'🖋',dip:'👍'}[k])+`+${v}`).join(' ')} に書く（空）`;
     const span=document.createElement('span'); span.className='slot'; span.textContent=label; row.appendChild(span);
   }
   wrap.appendChild(row);
@@ -470,17 +505,17 @@ function renderResearch(){
 }
 
 /* 基準値更新 */
-function updateBaseline(lastPicked){
+function updateBaseline(lastPickedVal){
   const mode=modeSel.value;
   if(mode==='random'){
     const pool=[]; for(let n=1;n<=25;n++) if(!usedNumbers.has(n)) pool.push(n);
     if(pool.length>0) baseline = pool[Math.floor(Math.random()*pool.length)];
   }else{
-    const greater = lastPicked>baseline; const dir = greater? 1 : -1;
-    let candidate = lastPicked+dir;
-    while(candidate>=1 && candidate<=25 && usedNumbers.has(candidate)) candidate+=dir;
-    if(candidate<1 || candidate>25){ candidate = lastPicked-dir; while(candidate>=1 && candidate<=25 && usedNumbers.has(candidate)) candidate-=dir; }
-    if(candidate>=1 && candidate<=25) baseline=candidate;
+    const greater = lastPickedVal>baseline; const dir = greater? 1 : -1;
+    let candidate = lastPickedVal+dir;
+    while(candidate>=1&&candidate<=25&&usedNumbers.has(candidate)) candidate+=dir;
+    if(candidate<1||candidate>25){ candidate = lastPickedVal-dir; while(candidate>=1&&candidate<=25&&usedNumbers.has(candidate)) candidate-=dir; }
+    if(candidate>=1&&candidate<=25) baseline=candidate;
   }
   usedNumbers.add(baseline); baselineEl.textContent=baseline; renderBaselineBar();
 }
@@ -499,7 +534,7 @@ function restoreSnapshot(snap, animate=false){
   baseline = snap.baseline; baselineEl.textContent=baseline; usedNumbers = new Set(snap.used);
   applyBoard(snap.board, animate); renderBaselineBar(); renderFrontier(); renderResearch(); updateCityAndEra(); renderTracker();
 }
-function undoLastPick(){ if(!moveSnapshot){ actionDlg.close(); return; } restoreSnapshot(moveSnapshot,false); moveSnapshot=null; pendingGrey=null; pendingHint.textContent=''; actionDlg.close(); }
+function undoLastPick(){ if(!moveSnapshot){ actionDlg.close(); return; } restoreSnapshot(moveSnapshot,false); moveSnapshot=null; pendingGrey=null; pendingHint.textContent=''; lastPicked=null; highlightEducation(0); actionDlg.close(); }
 function undoLastConfirmed(){ if(snapshotStack.length===0) return; const snap=snapshotStack.pop(); restoreSnapshot(snap,false); moveHistory.pop(); renderHistory(); turnEl.textContent=String(path.length); }
 
 /* 履歴 */
@@ -517,6 +552,9 @@ function onPick(i,j){
   moveSnapshot = makeSnapshot();                             // ← クリック前に保存
   if(!c.dataset.value){ c.textContent='1'; c.dataset.value='1'; }  // 未記入は1（資源なし）
   const val=Number(c.dataset.value);
+  lastPicked = val;             // 教育カードのハイライト用
+  highlightEducation(val);
+
   c.classList.add('chosen','pulse'); setTimeout(()=>c.classList.remove('pulse'),280);
   path.push([i,j]); fitSVG(true);
 
@@ -626,7 +664,7 @@ board.addEventListener('click', (e)=>{
   pendingHint.textContent=''; const f=pendingGrey.flashCellIJ; const fromTxt=pendingGrey.fromTxt, toTxt=pendingGrey.toTxt; pendingGrey=null;
   renderResearch(); renderFrontier(); renderBaselineBar(); updateCityAndEra(); renderTracker();
   if(f) flashCell(f[0],f[1]);
-  addHistory({turn:path.length, from:fromTxt||'?', to:toTxt||'?', action:`開拓 → [${i+1},${j+1}]`, baseBefore, baseAfter:baseline, delta:''});
+  addHistory({turn:path.length, from:fromTxt||'始', to:toTxt||'?', action:`開拓 → [${i+1},${j+1}]`, baseBefore, baseAfter:baseline, delta:''});
 });
 
 /* キャンセル/UNDO */
@@ -634,7 +672,7 @@ btnUndo.addEventListener('click', (e)=>{ e.preventDefault(); undoLastPick(); });
 actionDlg.addEventListener('cancel', (e)=>{ e.preventDefault(); undoLastPick(); });
 document.getElementById('undoBtn').addEventListener('click', undoLastConfirmed);
 
-/* 得点計算（閾値を 👍15／🖋14 に修正済み）＋バナー */
+/* 得点計算（👍15／🖋14の閾値）＋バナー */
 function calcScienceFromResearch(){
   let total = 0, run = 0, prev = null;
   for(let i=0;i<12;i++){
@@ -650,7 +688,7 @@ function naturalScore(){ const all=new Set(frontierNumbers); frontierX.forEach(n
 function compScore(){
   const sciEnd = calcScienceFromResearch();
   const my = { sci: res.sci + sciEnd, ind: res.ind, dip: res.dip, art: res.art };
-  if(compSel.value==='solo'){ return (my.sci>=25) + (my.ind>=25) + (my.dip>=15) + (my.art>=14); } // ← 修正
+  if(compSel.value==='solo'){ return (my.sci>=25) + (my.ind>=25) + (my.dip>=15) + (my.art>=14); }
   const L = { sci:+r('L_sci').value||0, ind:+r('L_ind').value||0, dip:+r('L_dip').value||0, art:+r('L_art').value||0 };
   const R = { sci:+r('R_sci').value||0, ind:+r('R_ind').value||0, dip:+r('R_dip').value||0, art:+r('R_art').value||0 };
   let pts=0; ['sci','ind','dip','art'].forEach(k=>{ if(my[k]>=L[k]) pts++; if(my[k]>=R[k]) pts++; }); return pts;
