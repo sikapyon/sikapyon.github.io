@@ -3,10 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mini Mini Civilization – ビジュアル強化＋トラッカー</title>
+<title>Mini Mini Civilization – トラッカー＋教育UI強化版</title>
 <style>
   :root{ --size:64px; --gap:8px; }
-  /* ===== 背景(時代遷移) ===== */
   body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:#222;
         transition:background 600ms ease, color 200ms; }
   body.era-1{ background:linear-gradient(#e7f6ff,#f7fbff); }
@@ -48,8 +47,10 @@
   .res{ display:flex; gap:10px; flex-wrap:wrap; }
   .res > div{ position:relative; background:#f3f5ff; border:1px solid #dfe3f7; border-radius:10px; padding:6px 10px; }
   body.era-5 .res > div{ background:#182550; border-color:#2c3a63; }
+
   .slot{ display:inline-flex; align-items:center; gap:6px; border:1px dashed #cfd5ea; border-radius:8px; padding:4px 6px; margin:4px; }
   body.era-5 .slot{ border-color:#324071; }
+
   dialog{ border:1px solid #ccd3ee; border-radius:12px; padding:12px 14px; }
   dialog::backdrop{ background:rgba(0,0,0,.2); }
   .inp{ width:60px; padding:4px 6px; border:1px solid #cfd5ea; border-radius:8px; }
@@ -64,16 +65,14 @@
   #baselineBar.bump .chip:first-child{ background:#e9f0ff; }
   body.era-5 #baselineBar .chip{ background:#16244f; border-color:#2c3a61; }
 
-  /* 文明評価バナー */
-  .score-banner{ margin-top:8px; padding:10px 12px; border:1px solid #d6e0ff; background:#f6f8ff; border-radius:12px; display:flex; align-items:center; gap:10px; position:relative; overflow:visible; }
-  .score-badge{ font-weight:700; padding:4px 8px; border-radius:999px; background:#e8efff; border:1px solid #c9d7ff; }
-  .score-title{ font-weight:800; }
-  .score-sub{ font-size:12px; color:#5b6175; }
+  /* 文明評価バナー（カード固定・高コントラスト） */
+  .score-banner{ background:#ffffff !important; color:#111 !important; border:2px solid #2f3545 !important; border-radius:14px !important; box-shadow:0 6px 18px rgba(0,0,0,.18) !important; margin-top:8px; padding:10px; }
+  .score-sub{ color:#333 !important; }
+  .score-badge{ background:#f5f7ff !important; border:1px solid #2f3545 !important; color:#000 !important; padding:2px 8px; border-radius:999px; margin-right:8px; font-weight:800; }
 
-  /* 線のドローアニメ */
+  /* 線のドローアニメ＋交差火花 */
   .seg-draw{ stroke-dasharray:var(--len); stroke-dashoffset:var(--len); animation:draw .35s ease forwards; }
   @keyframes draw{ to{ stroke-dashoffset:0; } }
-  /* 交差火花 */
   .spark{ fill:#ffd54a; opacity:0; animation:spark .6s ease forwards; }
   @keyframes spark{ 0%{opacity:0; transform:scale(.5);} 40%{opacity:1;} 100%{opacity:0; transform:scale(1.5);} }
 
@@ -82,25 +81,25 @@
   .gain-pop.anim{ animation:popUp .6s ease forwards; }
   @keyframes popUp{ 0%{opacity:0; transform:translate(-50%,10px) scale(.9);} 20%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-18px) scale(1);} }
 
-  /* 履歴 */
+  /* UNDO履歴（カード固定・高コントラスト） */
   #historyList{ display:flex; flex-direction:column; gap:6px; max-height:220px; overflow:auto; }
-  .hist-item{ display:flex; gap:8px; align-items:center; font-size:12px; background:#fbfcff; border:1px solid #e4e8fb; border-radius:10px; padding:6px 8px; }
-  .hist-turn{ font-weight:800; color:#445; }
-  .hist-meta{ color:#667; }
+  .hist-item{ background:#ffffff !important; color:#111 !important; border:1px solid #2f3545 !important; border-radius:12px !important; box-shadow:0 4px 10px rgba(0,0,0,.15) !important; transition:transform .12s ease, box-shadow .12s ease; padding:6px 8px; }
+  .hist-item:hover{ transform:translateY(-1px); box-shadow:0 8px 18px rgba(0,0,0,.22); }
+  .hist-turn{ color:#111 !important; font-weight:700 !important; }
+  .hist-meta{ color:#333 !important; }
 
   /* 建築バー */
   #cityBar{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
   #cityRow{ font-size:22px; letter-spacing:2px; }
 
-  /* 外交/芸術/発明の視覚トラッカー */
-  .trackbox{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;}
-  .ticks{ display:flex; gap:3px; }
+  /* 外交/芸術/発明のチェック式トラッカー */
+  .trackbox{ display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; margin-top:8px;}
+  .ticks{ display:flex; gap:3px; align-items:center; flex-wrap:wrap; }
   .tick{ width:16px; height:16px; border:1px solid #b8c0e6; border-radius:3px; background:#fff; position:relative; }
   .tick.filled::after{ content:""; position:absolute; inset:3px; background:#6aa8ff; border-radius:2px; }
   .tick.checked::after{ content:"✓"; position:absolute; inset:0; font-size:12px; color:#fff; display:grid; place-items:center; background:#6aa8ff; border-radius:2px; }
   body.era-5 .tick{ background:#152554; border-color:#2d3a61; }
   body.era-5 .tick.filled::after, body.era-5 .tick.checked::after{ background:#7fb2ff; }
-
   .inv-bulb{ width:20px; height:20px; border-radius:6px; border:1px solid #b8c0e6; display:grid; place-items:center; background:#fff; }
   .inv-bulb.on{ background:#fff7cc; border-color:#e8d067; }
   .inv-bulb.used{ background:#d9deef; color:#7a839f; }
@@ -111,6 +110,13 @@
   /* 紙吹雪 */
   .confetti{ position:absolute; width:6px; height:10px; opacity:.9; }
   @keyframes fall { to { transform: translateY(120px) rotate(360deg); opacity:.2; } }
+
+  /* 教育UI（カード化） */
+  .edu-grid{ display:grid; grid-template-columns:repeat(5, minmax(120px,1fr)); gap:10px; margin-top:8px; }
+  .edu-card{ background:#ffffff; border:1px solid #cfd5ea; border-radius:12px; padding:10px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  body.era-5 .edu-card{ background:#0f1a37; border-color:#2c3a61; }
+  .edu-range{ font-weight:800; margin-bottom:6px; }
+  .edu-gain{ display:flex; justify-content:center; gap:10px; font-weight:700; }
 </style>
 </head>
 <body class="era-1">
@@ -173,7 +179,14 @@
     </div>
 
     <div class="section-title">教育（基準以下）</div>
-    <div class="small">1–5→⚙1/🖋2、6–10→⚙2/🖋1、11–15→⚙4/🖋2、16–20→⚙6/🖋2、21–25→⚙8/🖋3。</div>
+    <!-- 教育カード -->
+    <div class="edu-grid">
+      <div class="edu-card"><div class="edu-range">1–5</div><div class="edu-gain">⚙+1  /  🖋+2</div></div>
+      <div class="edu-card"><div class="edu-range">6–10</div><div class="edu-gain">⚙+2  /  🖋+1</div></div>
+      <div class="edu-card"><div class="edu-range">11–15</div><div class="edu-gain">⚙+4  /  🖋+2</div></div>
+      <div class="edu-card"><div class="edu-range">16–20</div><div class="edu-gain">⚙+6  /  🖋+2</div></div>
+      <div class="edu-card"><div class="edu-range">21–25</div><div class="edu-gain">⚙+8  /  🖋+3</div></div>
+    </div>
   </section>
 
   <!-- 履歴と得点 -->
@@ -189,10 +202,11 @@
           <button id="undoBtn">↩ 一手戻す</button>
           <button id="scoreBtn">得点計算</button>
         </div>
-        <div id="scoreOut" class="mono"></div>
+        <div id="scoreOut" class="mono small" style="margin-top:6px;">
+          ソロ閾値 ： 🧪25, ⚙25, 👍<b>15</b>, 🖋<b>14</b>。 未使用💡×1、min(🍞,🧪+研究,⚙) を加算。自然=開拓未×の数。
+        </div>
       </div>
     </div>
-    <div class="small">合計 = 💡発明 + 文化(min) + 競争 + 自然。ソロ閾値：🧪25, ⚙25, 👍14, 🖋15。未使用💡×1、min(🍞,🧪,⚙) を加算。自然=開拓未×の数。</div>
   </section>
 
   <!-- 競争UI -->
@@ -225,7 +239,7 @@
 </dialog>
 
 <script>
-/* ====== 参照 ====== */
+/* ===== 参照 ===== */
 const board = document.getElementById('board');
 const lines = document.getElementById('lines');
 const baselineEl = document.getElementById('baseline');
@@ -243,21 +257,20 @@ const cityRow = document.getElementById('cityRow');
 const trackVisual = document.getElementById('trackVisual');
 const r = (id)=>document.getElementById(id);
 
-/* ====== ステータス ====== */
+/* ===== ステータス ===== */
 const res = { food:0, sci:0, ind:0, art:0, dip:0, inv:0 };
-const stat = { invEarned:0, invSpent:0 }; // 可視化用（総獲得/使用済）
+const stat = { invEarned:0, invSpent:0 }; // 総獲得/使用済（電球表示用）
 function updRes(){ r('rFood').textContent=res.food; r('rSci').textContent=res.sci; r('rInd').textContent=res.ind; r('rArt').textContent=res.art; r('rDip').textContent=res.dip; r('rInv').textContent=res.inv; renderTracker(); }
 
-/* リソース+1ポップ */
+/* ポップ演出 */
 function popGain(key, amt){
   if(amt<=0) return;
-  const targetId = key==='food'?'rFood':key==='sci'?'rSci':key==='ind'?'rInd':key==='art'?'rArt':key==='dip'?'rDip':'rInv';
-  const host = r(targetId).parentElement;
+  const idMap={food:'rFood',sci:'rSci',ind:'rInd',art:'rArt',dip:'rDip',inv:'rInv'};
+  const host = r(idMap[key]).parentElement;
+  const icon={food:'🍞',sci:'🧪',ind:'⚙',art:'🖋',dip:'👍',inv:'💡'}[key]||'+';
   for(let i=0;i<amt;i++){
-    const span=document.createElement('span');
-    const icon = {food:'🍞',sci:'🧪',ind:'⚙',art:'🖋',dip:'👍',inv:'💡'}[key]||'+';
-    span.className='gain-pop anim'; span.textContent=`${icon}+1`;
-    host.appendChild(span); setTimeout(()=>host.removeChild(span),650);
+    const span=document.createElement('span'); span.className='gain-pop anim'; span.textContent=`${icon}+1`;
+    host.appendChild(span); setTimeout(()=>span.remove(),650);
   }
 }
 function addRes(key, amt){
@@ -267,14 +280,14 @@ function addRes(key, amt){
   updRes();
 }
 
-/* ====== ゲーム状態 ====== */
+/* ===== ゲーム状態 ===== */
 let cells=[], path=[], baseline=12, usedNumbers=new Set([12]);
 const frontierNumbers=[21,1,22,2,23,3,24,4,25];
 let frontierX = new Set();
-let research = []; // 12 slots
-let pendingGrey = null;  // { devNum, baselineSource, flashCellIJ, preSnap, fromTxt, toTxt }
-let moveSnapshot = null; // ダイアログ中「キャンセル」用（クリック前の状態）
-let snapshotStack = [];  // 確定ごとのUNDO
+let research = [];  // 12 slots
+let pendingGrey = null;
+let moveSnapshot = null;
+let snapshotStack = [];
 let moveHistory = [];
 
 /* 幾何 */
@@ -282,7 +295,7 @@ function triangular(n){ return n*(n+1)/2; }
 function inBounds(i,j){ return i>=0&&i<5&&j>=0&&j<5; }
 function neighbors(i,j){ const out=[]; for(let di=-1;di<=1;di++)for(let dj=-1;dj<=1;dj++){ if(di||dj){ const ni=i+di,nj=j+dj; if(inBounds(ni,nj)) out.push([ni,nj]); } } return out; }
 
-/* グレー配置と資源 */
+/* グレー配置・資源 */
 const greyMap = [
   [1,0,0,0,1],
   [0,1,0,1,0],
@@ -297,13 +310,13 @@ function greyGain(i,j){
   return {food:3,dip:1};
 }
 
-/* 研究スロット資源（左→右） */
+/* 研究スロット資源 */
 const researchGain=[
   {art:1,dip:1},{sci:1,dip:1},{sci:1,dip:1},{dip:2},{dip:1},
   {food:1,dip:1},{food:1,dip:1},{dip:1},{dip:2},{sci:1,dip:1},{sci:1,dip:1},{art:1,dip:1},
 ];
 
-/* 盤面のシリアライズ（UNDO用） */
+/* 盤面シリアライズ */
 function serializeBoard(){
   const vals=[], chosen=[];
   for(let i=0;i<5;i++){ vals[i]=[]; chosen[i]=[];
@@ -321,19 +334,18 @@ function applyBoard(state, animate=false){
   fitSVG(animate);
 }
 
-/* 線描画（最後のみアニメ）。交差検出で火花。 */
+/* 線描画＆火花 */
 function cellCenter([i,j]){ const s=parseFloat(getComputedStyle(board).getPropertyValue('--size')); const g=parseFloat(getComputedStyle(board).getPropertyValue('--gap')); return {x:j*(s+g)+s/2, y:i*(s+g)+s/2}; }
 function segLen(ax,ay,bx,by){ const dx=bx-ax, dy=by-ay; return Math.sqrt(dx*dx+dy*dy); }
 function segIntersect(a,b,c,d){
   function cross(x1,y1,x2,y2,x3,y3){ return (x2-x1)*(y3-y1)-(y2-y1)*(x3-x1);}
   const A=cross(a.x,a.y,b.x,b.y,c.x,c.y), B=cross(a.x,a.y,b.x,b.y,d.x,d.y), C=cross(c.x,c.y,d.x,d.y,a.x,a.y), D=cross(c.x,c.y,d.x,d.y,b.x,b.y);
-  if((A===0&&B===0&&C===0&&D===0)) return null; // 同一直線上は無視
+  if((A===0&&B===0&&C===0&&D===0)) return null;
   return (A*B<0 && C*D<0);
 }
 function addSpark(x,y){
   const s=document.createElementNS('http://www.w3.org/2000/svg','circle');
-  s.setAttribute('cx',x); s.setAttribute('cy',y); s.setAttribute('r',6);
-  s.setAttribute('class','spark'); lines.appendChild(s);
+  s.setAttribute('cx',x); s.setAttribute('cy',y); s.setAttribute('r',6); s.setAttribute('class','spark'); lines.appendChild(s);
   setTimeout(()=>s.remove(),600);
 }
 function fitSVG(animate=false){
@@ -342,7 +354,6 @@ function fitSVG(animate=false){
   lines.innerHTML='';
   if(path.length<=1) return;
   const end = path.length-1;
-  // 既存線
   for(let k=1;k<end;k++){
     const a=cellCenter(path[k-1]), b=cellCenter(path[k]);
     const L=document.createElementNS('http://www.w3.org/2000/svg','line');
@@ -351,7 +362,6 @@ function fitSVG(animate=false){
     L.setAttribute('stroke','#6a8cff'); L.setAttribute('stroke-width','3');
     lines.appendChild(L);
   }
-  // 直近セグメント
   const a=cellCenter(path[end-1]), b=cellCenter(path[end]);
   const L = document.createElementNS('http://www.w3.org/2000/svg','line');
   L.setAttribute('x1',a.x); L.setAttribute('y1',a.y);
@@ -359,14 +369,9 @@ function fitSVG(animate=false){
   L.setAttribute('stroke','#6a8cff'); L.setAttribute('stroke-width','3');
   if(animate){ const len=segLen(a.x,a.y,b.x,b.y); L.classList.add('seg-draw'); L.style.setProperty('--len',len); }
   lines.appendChild(L);
-
-  // 交差判定（過去セグメントと）
   for(let k=1;k<end-1;k++){
     const p1=cellCenter(path[k-1]), p2=cellCenter(path[k]);
-    if(segIntersect(p1,p2,a,b)){
-      // 火花を交点近辺（中点）に
-      addSpark((p1.x+p2.x)/2,(p1.y+p2.y)/2);
-    }
+    if(segIntersect(p1,p2,a,b)) addSpark((p1.x+p2.x)/2,(p1.y+p2.y)/2);
   }
 }
 window.addEventListener('resize',()=>fitSVG(false));
@@ -389,62 +394,43 @@ function renderBaselineBar(){
   requestAnimationFrame(()=>host.classList.add('bump'));
 }
 function updateCityAndEra(){
-  // 暫定スコア（競争/自然は0として軽く算出）
   const sciEnd = calcScienceFromResearch();
   const cultureMin = Math.min(res.food, res.sci + sciEnd, res.ind);
   const total = res.inv + cultureMin;
-
-  // 建築しきい値
   const steps = [5,10,15,20,25,30,35];
   const icons = ['🏠','🏘️','🏛️','🏯','🏰','🏙️','🚀'];
   let built=0; for(const t of steps){ if(total>=t) built++; }
   cityRow.textContent = icons.slice(0,built).join(' ');
 
-  // 時代判定（手数とスコアの大きい方寄り）
   const turn=Math.min(path.length,25);
-  let eraByTurn = 1 + Math.floor((turn)/6); // 1..5
-  let eraByScore = 1 + Math.floor(Math.min(total,35)/8); // 1..5
+  let eraByTurn = 1 + Math.floor((turn)/6);
+  let eraByScore = 1 + Math.floor(Math.min(total,35)/8);
   const era = Math.max(1, Math.min(5, Math.max(eraByTurn, eraByScore)));
   document.body.className = 'era-' + era;
 }
 
-/* 外交・芸術・発明のチェック式トラッカー */
+/* チェック式トラッカー表示 */
 function renderTracker(){
   trackVisual.innerHTML = '';
-  // 👍 外交：5個で1区切り
-  const dipWrap=document.createElement('div'); dipWrap.className='row'; dipWrap.innerHTML='<b>👍 外交</b>';
-  const dipTicks=document.createElement('div'); dipTicks.className='ticks';
-  const dip= res.dip; const dipFull=Math.floor(dip/5), dipRest=dip%5;
-  for(let g=0; g<dipFull; g++){ for(let k=0;k<5;k++){ const t=document.createElement('div'); t.className='tick checked'; dipTicks.appendChild(t); } const gap=document.createElement('span'); gap.style.width='8px'; dipTicks.appendChild(gap); }
-  for(let k=0;k<dipRest;k++){ const t=document.createElement('div'); t.className='tick filled'; dipTicks.appendChild(t); }
-  for(let k=dipRest;k<5;k++){ const t=document.createElement('div'); t.className='tick'; dipTicks.appendChild(t); }
-  dipWrap.appendChild(dipTicks);
-  trackVisual.appendChild(dipWrap);
-
-  // 🖋 芸術：4個で1区切り（満了で💡増える）
-  const artWrap=document.createElement('div'); artWrap.className='row'; artWrap.innerHTML='<b>🖋 芸術</b>';
-  const artTicks=document.createElement('div'); artTicks.className='ticks';
-  const art=res.art; const aFull=Math.floor(art/4), aRest=art%4;
-  for(let g=0; g<aFull; g++){ for(let k=0;k<4;k++){ const t=document.createElement('div'); t.className='tick checked'; artTicks.appendChild(t); } const gap=document.createElement('span'); gap.style.width='8px'; artTicks.appendChild(gap); }
+  // 👍 外交：5個ごと
+  const dipWrap=document.createElement('div'); dipWrap.innerHTML='<b>👍 外交</b>'; const dipTicks=document.createElement('div'); dipTicks.className='ticks';
+  const dip=res.dip, dFull=Math.floor(dip/5), dRest=dip%5;
+  for(let g=0; g<dFull; g++){ for(let k=0;k<5;k++){ const t=document.createElement('div'); t.className='tick checked'; dipTicks.appendChild(t); } dipTicks.appendChild(Object.assign(document.createElement('span'),{style:'width:8px'})); }
+  for(let k=0;k<dRest;k++){ const t=document.createElement('div'); t.className='tick filled'; dipTicks.appendChild(t); }
+  for(let k=dRest;k<5;k++){ const t=document.createElement('div'); t.className='tick'; dipTicks.appendChild(t); }
+  dipWrap.appendChild(dipTicks); trackVisual.appendChild(dipWrap);
+  // 🖋 芸術：4個ごと（満了で💡）
+  const artWrap=document.createElement('div'); artWrap.innerHTML='<b>🖋 芸術</b>'; const artTicks=document.createElement('div'); artTicks.className='ticks';
+  const art=res.art, aFull=Math.floor(art/4), aRest=art%4;
+  for(let g=0; g<aFull; g++){ for(let k=0;k<4;k++){ const t=document.createElement('div'); t.className='tick checked'; artTicks.appendChild(t); } artTicks.appendChild(Object.assign(document.createElement('span'),{style:'width:8px'})); }
   for(let k=0;k<aRest;k++){ const t=document.createElement('div'); t.className='tick filled'; artTicks.appendChild(t); }
   for(let k=aRest;k<4;k++){ const t=document.createElement('div'); t.className='tick'; artTicks.appendChild(t); }
-  artWrap.appendChild(artTicks);
-  trackVisual.appendChild(artWrap);
-
-  // 💡 発明：総獲得ぶんを電球で表示。使用済みはグレー化
-  const invWrap=document.createElement('div'); invWrap.className='row'; invWrap.innerHTML='<b>💡 発明</b>';
-  const invRow=document.createElement('div'); invRow.className='ticks';
-  const totalBulbs = Math.max(stat.invEarned, res.inv + stat.invSpent);
-  const used = stat.invSpent;
-  for(let i=0;i<totalBulbs;i++){
-    const b=document.createElement('div'); b.className='inv-bulb on';
-    b.textContent='💡'; if(i<used) b.classList.add('used');
-    invRow.appendChild(b);
-  }
-  // 残り0でも枠が見えるよう最低1個は表示
-  if(totalBulbs===0){ const b=document.createElement('div'); b.className='inv-bulb used'; b.textContent='💡'; invRow.appendChild(b); }
-  invWrap.appendChild(invRow);
-  trackVisual.appendChild(invWrap);
+  artWrap.appendChild(artTicks); trackVisual.appendChild(artWrap);
+  // 💡 発明：総獲得（使用済みはグレー）
+  const invWrap=document.createElement('div'); invWrap.innerHTML='<b>💡 発明</b>'; const invRow=document.createElement('div'); invRow.className='ticks';
+  const totalBulbs=Math.max(stat.invEarned, res.inv+stat.invSpent); const used=stat.invSpent;
+  for(let i=0;i<Math.max(1,totalBulbs);i++){ const b=document.createElement('div'); b.className='inv-bulb on'; b.textContent='💡'; if(i<used||totalBulbs===0) b.classList.add('used'); invRow.appendChild(b); }
+  invWrap.appendChild(invRow); trackVisual.appendChild(invWrap);
 }
 
 /* 初期生成 */
@@ -462,7 +448,7 @@ function buildBoard(){
       board.appendChild(div); cells[i][j]=div;
     }
   }
-  fitSVG(false); renderFrontier(); renderResearch(); renderBaselineBar(); updateCityAndEra(); renderTracker();
+  fitSVG(false); renderFrontier(); renderResearch(); renderBaselineBar(); updateCityAndEra(); renderTracker(); updRes();
 }
 
 /* ランダム/クリア */
@@ -475,11 +461,9 @@ function renderResearch(){
   const wrap=r('researchSlots'); wrap.innerHTML='';
   const row=document.createElement('div');
   for(let i=0;i<12;i++){
-    const span=document.createElement('span'); span.className='slot';
-    const label = (typeof research[i]==='number')? `#${i+1}【${research[i]}】` : `#${i+1}（空）`;
-    const gains = ` ${Object.entries(researchGain[i]).map(([k,v])=>({food:'🍞',sci:'🧪',ind:'⚙',art:'🖋',dip:'👍'}[k])+`+${v}`).join(' ')}`;
-    span.textContent = `${label}${gains}`;
-    row.appendChild(span);
+    const g = researchGain[i];
+    const label = (typeof research[i]==='number')? `#${i+1}【${research[i]}】` : `#${i+1} ${Object.entries(g).map(([k,v])=>({food:'🍞',sci:'🧪',ind:'⚙',art:'🖋',dip:'👍'}[k])+`+${v}`).join(' ')} に書く（空）`;
+    const span=document.createElement('span'); span.className='slot'; span.textContent=label; row.appendChild(span);
   }
   wrap.appendChild(row);
   const host=r('researchTableWrap'); host.innerHTML=''; host.appendChild(buildResearchTable());
@@ -501,7 +485,7 @@ function updateBaseline(lastPicked){
   usedNumbers.add(baseline); baselineEl.textContent=baseline; renderBaselineBar();
 }
 
-/* ====== スナップショット（クリック前に保存） ====== */
+/* スナップショット */
 function makeSnapshot(){
   return {
     baseline, used:new Set(usedNumbers), res:{...res}, stat:{...stat},
@@ -523,15 +507,15 @@ function deltaText(before, after){ const out=[]; const map={food:'🍞',sci:'�
 function addHistory(entry){ moveHistory.push(entry); renderHistory(); }
 function renderHistory(){ historyList.innerHTML=''; moveHistory.forEach(h=>{ const div=document.createElement('div'); div.className='hist-item'; const t=document.createElement('span'); t.className='hist-turn'; t.textContent=`${h.turn}.`; const main=document.createElement('span'); main.textContent=`${h.from}→${h.to} / ${h.action}`; const meta=document.createElement('span'); meta.className='hist-meta'; meta.textContent=`基準 ${h.baseBefore}→${h.baseAfter}  ${h.delta||''}`; div.append(t,main,meta); historyList.appendChild(div); }); }
 
-/* ====== マス選択（クリック前に保存） ====== */
+/* マス選択（クリック前に保存） */
 function onPick(i,j){
   if(pendingGrey) return;
   const c=cells[i][j];
   if(path.length){ const [pi,pj]=path[path.length-1]; const ok=neighbors(pi,pj).some(([ni,nj])=>ni===i&&nj===j); if(!ok) return; }
   if(c.classList.contains('chosen')) return;
 
-  moveSnapshot = makeSnapshot();             // ← クリック前に保存
-  if(!c.dataset.value){ c.textContent='1'; c.dataset.value='1'; }
+  moveSnapshot = makeSnapshot();                             // ← クリック前に保存
+  if(!c.dataset.value){ c.textContent='1'; c.dataset.value='1'; }  // 未記入は1（資源なし）
   const val=Number(c.dataset.value);
   c.classList.add('chosen','pulse'); setTimeout(()=>c.classList.remove('pulse'),280);
   path.push([i,j]); fitSVG(true);
@@ -540,14 +524,11 @@ function onPick(i,j){
   showActionDialog({i,j,val,gt,parity});
 }
 
-/* アイコン文字化 */
 function icon(k){ return {food:'🍞',sci:'🧪',ind:'⚙',art:'🖋',dip:'👍',inv:'💡'}[k]||k; }
 function gainStr(obj){ return Object.entries(obj).map(([k,v])=>`${icon(k)}+${v}`).join(' '); }
-
-/* セル縁取りフラッシュ */
 function flashCell(i,j){ const c=cells[i][j]; c.classList.add('flash'); setTimeout(()=>c.classList.remove('flash'),520); }
 
-/* ====== アクションダイアログ ====== */
+/* アクションダイアログ */
 function showActionDialog(ctx){
   actionDlg.close(); actionBody.innerHTML='';
   const {i,j,val,gt,parity}=ctx;
@@ -566,7 +547,7 @@ function showActionDialog(ctx){
   const body=document.createElement('div'); actionBody.appendChild(body);
 
   function finalize(preSnap, baseSource, extraLog, flashTarget){
-    snapshotStack.push(preSnap);                    // 着手前スナップショットを積む
+    snapshotStack.push(preSnap);
     const beforeRes = {...res}; const baseBefore = baseline;
     updateBaseline(baseSource);
     turnEl.textContent=String(path.length);
@@ -627,7 +608,7 @@ function showActionDialog(ctx){
   actionDlg.showModal();
 }
 
-/* 開拓：グレーへの書き込み */
+/* 開拓：グレーへ書き込み */
 function enableGreyWrite(devNum, baselineSource, flashCellIJ, preSnap, fromTxt, toTxt){
   pendingGrey = { devNum, baselineSource, flashCellIJ, preSnap, fromTxt, toTxt };
   pendingHint.innerHTML = '（開拓中：グレーマスを1つクリックして数字を置いてください）';
@@ -648,12 +629,12 @@ board.addEventListener('click', (e)=>{
   addHistory({turn:path.length, from:fromTxt||'?', to:toTxt||'?', action:`開拓 → [${i+1},${j+1}]`, baseBefore, baseAfter:baseline, delta:''});
 });
 
-/* キャンセル（Escも） */
+/* キャンセル/UNDO */
 btnUndo.addEventListener('click', (e)=>{ e.preventDefault(); undoLastPick(); });
 actionDlg.addEventListener('cancel', (e)=>{ e.preventDefault(); undoLastPick(); });
 document.getElementById('undoBtn').addEventListener('click', undoLastConfirmed);
 
-/* 得点計算＋文明評価＋紙吹雪 */
+/* 得点計算（閾値を 👍15／🖋14 に修正済み）＋バナー */
 function calcScienceFromResearch(){
   let total = 0, run = 0, prev = null;
   for(let i=0;i<12;i++){
@@ -669,7 +650,7 @@ function naturalScore(){ const all=new Set(frontierNumbers); frontierX.forEach(n
 function compScore(){
   const sciEnd = calcScienceFromResearch();
   const my = { sci: res.sci + sciEnd, ind: res.ind, dip: res.dip, art: res.art };
-  if(compSel.value==='solo'){ return (my.sci>=25) + (my.ind>=25) + (my.dip>=14) + (my.art>=15); }
+  if(compSel.value==='solo'){ return (my.sci>=25) + (my.ind>=25) + (my.dip>=15) + (my.art>=14); } // ← 修正
   const L = { sci:+r('L_sci').value||0, ind:+r('L_ind').value||0, dip:+r('L_dip').value||0, art:+r('L_art').value||0 };
   const R = { sci:+r('R_sci').value||0, ind:+r('R_ind').value||0, dip:+r('R_dip').value||0, art:+r('R_art').value||0 };
   let pts=0; ['sci','ind','dip','art'].forEach(k=>{ if(my[k]>=L[k]) pts++; if(my[k]>=R[k]) pts++; }); return pts;
@@ -705,10 +686,8 @@ function score(){
   out.innerHTML =
     `💡=${invPts}, 文化(min)=${cultureMin}, 競争=${compPts}, 自然=${nat} → <b>合計 ${total}</b>` +
     ` <span class="small">（参考: 🧪=${res.sci}+${sciEnd}）</span>` +
-    `<div id="scoreBanner" class="score-banner"><span class="score-badge">${info.emoji}</span><div><div class="score-title">${info.title}</div><div class="score-sub">あなたの文明は <b>${total} 点</b>。${info.sub}</div></div></div>`;
-  // 紙吹雪
-  const banner = document.getElementById('scoreBanner');
-  makeConfetti(banner);
+    `<div id="scoreBanner" class="score-banner"><span class="score-badge">${info.emoji}</span><span class="score-title" style="font-weight:800">${info.title}</span><div class="score-sub">あなたの文明は <b>${total} 点</b>。${info.sub}</div></div>`;
+  const banner = document.getElementById('scoreBanner'); makeConfetti(banner);
   updateCityAndEra();
 }
 
