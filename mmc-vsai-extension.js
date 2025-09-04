@@ -21,8 +21,6 @@
       + '.vsai-score h3{margin:.3em 0}'
       + '.vsai-score .tbl td,.vsai-score .tbl th{min-width:90px}'
       + '@media (max-width:900px){.vsai-dual{gap:14px;}}'
-      + '.aiWrap .cell.aiWhite{background:#eef1f7;}'
-      + '.aiWrap .cell.aiGrey{background:#d9deea;}';
     var st=document.createElement('style'); st.type='text/css';
     if(st.styleSheet){ st.styleSheet.cssText=css; } else { st.appendChild(document.createTextNode(css)); }
     document.head.appendChild(st);
@@ -69,7 +67,7 @@
     for(k=0;k<humanCells.length;k++){
       var c=humanCells[k]; i=+c.dataset.i; j=+c.dataset.j;
       var isWhite=c.classList.contains('white'); whiteMask[i][j]=isWhite;
-      var d=document.createElement('div'); d.className='cell '+(isWhite?'aiWhite':'aiGrey');
+      var d = document.createElement('div'); d.className = 'cell ' + (isWhite ? 'white' : 'grey');
       d.dataset.i=i; d.dataset.j=j; d.dataset.value='';
       aiBoard.appendChild(d);
     }
@@ -284,7 +282,7 @@
       for(var k=0;k<cells.length;k++){
         var c=cells[k];
         if(+c.dataset.i===i && +c.dataset.j===j){
-          var isGrey=c.classList.contains('aiGrey');
+          var isGrey=c.classList.contains('grey');
           if(isGrey && !state.vals[i][j] && !state.chosen[i][j]) return [i,j];
         }
       }
@@ -307,6 +305,39 @@
     return out;
   }
 
+/* ------ 将来の到達セル数（詰み検出用） ------ */
+// 未選択セル上を8近傍で flood-fill してサイズを数える（既に chosen のマスは壁）
+function _floodCountFrom(state, si, sj, seen){
+  var stack=[[si,sj]], cnt=0;
+  while(stack.length){
+    var p=stack.pop(), i=p[0], j=p[1];
+    if(i<0||i>=5||j<0||j>=5) continue;
+    if(seen[i][j]) continue;
+    if(state.chosen[i][j]) continue;     // 選択済みは通れない
+    seen[i][j]=true; cnt++;
+    for(var di=-1; di<=1; di++) for(var dj=-1; dj<=1; dj++){
+      if(!di && !dj) continue;
+      stack.push([i+di, j+dj]);
+    }
+  }
+  return cnt;
+}
+
+// 現在のヘッド（i,j）から「次に動ける成分」の合計サイズを返す
+function _reachableFutureCount(state, i, j){
+  var seen=[]; for(var a=0;a<5;a++){ seen[a]=[]; for(var b=0;b<5;b++) seen[a][b]=false; }
+  var total=0;
+  for(var di=-1; di<=1; di++) for(var dj=-1; dj<=1; dj++){
+    if(!di && !dj) continue;
+    var ni=i+di, nj=j+dj;
+    if(ni<0||ni>=5||nj<0||nj>=5) continue;
+    if(state.chosen[ni][nj]) continue;   // 未選択セルだけが“次の一歩”
+    total += _floodCountFrom(state, ni, nj, seen);
+  }
+  return total; // これが将来辿れる残り面積
+}
+
+
   function _eduGainFor(v){
     return {
       ind: (v<=5)?1 : (v<=10)?2 : (v<=15)?4 : (v<=20)?6 : 8,
@@ -314,140 +345,101 @@
     };
   }
 
-  // 重み
-  var _W = {
-    inv: 3.0, art: 0.9, ind: 0.9, dip: 0.9, sci: 0.9, food: 0.4,
-    tri: 1.0, nat: -0.6, mobility: 0.2, stuck: -8.0
+// 重み（発明は無視、研究・文化を強調）
+var _W = {
+    inv: 0.0,  // 発明を無視
+    art: 0.9, ind: 0.9, dip: 0.9, sci: 0.9, food: 0.4,
+    tri: 1.2,  // 研究三角数を少し重視
+    nat: -0.6, mobility: 0.2, stuck: -8.0
+};
+
+
+  // 1手適用＋スコア（発明無視・開拓展開力＋文化バランス強化）
+function _applyAndScore(state, i, j, baselineNow){
+  var turnBefore = state.path.length;
+  var wasEmpty   = !state.vals[i][j];
+  var before = {
+    res: {food:state.res.food,sci:state.res.sci,ind:state.res.ind,art:state.res.art,dip:state.res.dip,inv:state.res.inv},
+    tri: _triFromResearchArr(state.research),
+    usedFront: state.frontierX.size
   };
 
-  // 1手適用＋スコア
-  function _applyAndScore(state, i, j, baselineNow){
-    var turnBefore = state.path.length;
-    var wasEmpty   = !state.vals[i][j];
-    var before = {
-      res:{food:state.res.food,sci:state.res.sci,ind:state.res.ind,art:state.res.art,dip:state.res.dip,inv:state.res.inv},
-      tri:_triFromResearchArr(state.research),
-      usedFront: state.frontierX.size
-    };
+  if(!state.vals[i][j]) state.vals[i][j]='1';
+  state.chosen[i][j]=true; state.path.push([i,j]);
+  var v = Number(state.vals[i][j])||1;
+  var gt = v>baselineNow;
 
-    if(!state.vals[i][j]) state.vals[i][j]='1';
-    state.chosen[i][j]=true; state.path.push([i,j]);
-    var v = Number(state.vals[i][j])||1;
-    var gt = v>baselineNow;
-
-    if(gt && v%2===1){
-      // 開拓
-      var nextP=null;
-      for(var n=0;n<frontierNumbers.length;n++){ if(!state.frontierX.has(frontierNumbers[n])){ nextP=frontierNumbers[n]; break; } }
-      if(nextP!=null){
-        var idx=frontierNumbers.indexOf(nextP);
-        for(var n2=0;n2<=idx;n2++) state.frontierX.add(frontierNumbers[n2]);
-        var spot=_firstGreySpotForAI(state);
-        if(spot && typeof window.greyGain==='function'){
-          var g = window.greyGain(spot[0], spot[1]);
-          if(g.food) state.res.food += g.food;
-          if(g.sci)  state.res.sci  += g.sci;
-          if(g.ind)  state.res.ind  += g.ind;
-          if(g.art)  state.res.art  += g.art;
-          if(g.dip)  state.res.dip  += g.dip;
-          var beforeArt=before.res.art, addArt=g.art||0;
-          if(addArt>0){
-            var got2=Math.floor((beforeArt+addArt)/4)-Math.floor(beforeArt/4);
-            if(got2>0) state.res.inv += got2;
-          }
-        }
+  // アクション
+  if(gt && v%2===1){
+    // 開拓
+    var spot = _firstGreySpotForAI(state);
+    if(spot && window.greyGain){
+      var g = window.greyGain(spot[0], spot[1]);
+      for(var key in g){ state.res[key]+=g[key]; }
+      // ★展開力ボーナス：灰の隣にある未使用白マス数
+      var neigh=0;
+      for(var di=-1;di<=1;di++)for(var dj=-1;dj<=1;dj++){
+        if(!di&&!dj) continue;
+        var ni=spot[0]+di,nj=spot[1]+dj;
+        if(ni>=0&&ni<5&&nj>=0&&nj<5 && whiteMask[ni][nj] && !state.chosen[ni][nj]) neigh++;
       }
-    }else if(gt && v%2===0){
-      // 研究
-      var k=-1; for(var m=0;m<12;m++){ if(state.research[m]===null){ k=m; break; } }
-      if(k>=0){
-        state.research[k]=v;
-        if(window.researchGain){ var gg=window.researchGain[k];
-          if(gg.food) state.res.food += gg.food;
-          if(gg.sci)  state.res.sci  += gg.sci;
-          if(gg.ind)  state.res.ind  += gg.ind;
-          if(gg.art)  state.res.art  += gg.art;
-          if(gg.dip)  state.res.dip  += gg.dip;
-          var beforeArt2=before.res.art, addArt2=gg.art||0;
-          if(addArt2>0){
-            var gotBulb=Math.floor((beforeArt2+addArt2)/4)-Math.floor(beforeArt2/4);
-            if(gotBulb>0) state.res.inv += gotBulb;
-          }
-        }
-        // 研究連は 6～7 を目標、8以降は逓減
-        var run=0;
-        for(var t=k; t>=0; t--){
-          var a=state.research[t], b=(t>0?state.research[t-1]:null);
-          if(typeof a==='number' && (b===null || (typeof b==='number' && a>b))) run++;
-          else break;
-        }
-        if(run<=4)     state.res.sci += 0;           // triで評価するため実値は弄らない
-        else if(run<=6) state.res.sci += 0;
-        else if(run===7) state.res.sci += 0;
-        else             state.res.sci += 0;
-      }
-    }else{
-      // 教育（💡が今つくなら🖋、それ以外は⚙）
-      var eg=_eduGainFor(v);
-      var beforeArt3 = before.res.art;
-      var willBulb = ((beforeArt3 % 4) + eg.art) >= 4;
-      if(willBulb){ state.res.art += eg.art; state.res.inv += Math.floor((beforeArt3+eg.art)/4)-Math.floor(beforeArt3/4); }
-      else { state.res.ind += eg.ind; }
+      state.res.food += neigh*0; // 実リソースは変えずスコアで評価
+      var bonus = neigh*4;       // 1隣接ごとに+4点
     }
-
-    // 即時スコア
-    var afterTri = _triFromResearchArr(state.research);
-    var d = {
-      inv: state.res.inv - before.res.inv,
-      art: state.res.art - before.res.art,
-      ind: state.res.ind - before.res.ind,
-      dip: state.res.dip - before.res.dip,
-      sci: state.res.sci - before.res.sci,
-      food: state.res.food - before.res.food,
-      tri: afterTri - before.tri,
-      nat: (before.usedFront - state.frontierX.size)
-    };
-    var nextCands = _candsForState(state).length;
-    var score = d.inv*_W.inv + d.art*_W.art + d.ind*_W.ind + d.dip*_W.dip + d.sci*_W.sci + d.food*_W.food + d.tri*_W.tri + d.nat*_W.nat
-              + nextCands*_W.mobility + (nextCands===0? _W.stuck:0);
-
-    // --- セオリー加点/減点 ---
-    var isGrey = !whiteMask[i][j];
-    if(wasEmpty && isGrey){
-      var pen = -14;                   // 未開拓灰を踏むペナルティ
-      if(i===2 && j===2) pen = -4;     // 中央灰は緩和（足場OK）
-      if(turnBefore===0) pen = -80;    // 初手は厳禁
-      if(turnBefore===1) pen += -25;   // 2手目も強く抑制
-      score += pen;
-    }
-    // 1～3手目で開拓を強推（2回欲しい）
-    if(turnBefore<=2){
-      if(gt && v%2===1) score += (turnBefore===0? 28 : 18);
-      else score -= 6;
-    }
-    // 低い数は基準超で、1～5を基準下教育で取ったら微ボーナス
-    if(v<=10 && gt) score += 4;
-    if(v<=5 && !gt) score += 2.5;
-
-    // 高い数は基準下優遇、特に23/25
-    if(v>=16){
-      if(!gt) score += (v===23||v===25)? 10 : 4;
-      else    score -= (v===23||v===25)? 8 : 3;
-    }
-    // 21/23 は強い開拓トリガー
-    if(gt && v%2===1 && (v===21 || v===23)) score += 6;
-
-    // 置いたセルの周囲に未選択白が多いほど可動域良し
-    var neighWhite = 0;
-    for (var di=-1; di<=1; di++) for (var dj=-1; dj<=1; dj++){
-      if(!di && !dj) continue;
-      var ni=i+di, nj=j+dj;
-      if(ni>=0&&ni<5&&nj>=0&&nj<5 && !state.chosen[ni][nj] && whiteMask[ni][nj]) neighWhite++;
-    }
-    score += 1.2 * neighWhite;
-
-    return {score:score, newBaseline:v};
+  }else if(gt && v%2===0){
+    // 研究
+    var k=-1; for(var m=0;m<12;m++){ if(state.research[m]===null){ k=m; break; } }
+    if(k>=0) state.research[k]=v;
+  }else{
+    // 教育（簡略化）
+    state.res.ind += 1;
   }
+
+  // 即時スコア
+  var afterTri = _triFromResearchArr(state.research);
+  var d = {
+    inv: state.res.inv - before.res.inv,
+    art: state.res.art - before.res.art,
+    ind: state.res.ind - before.res.ind,
+    dip: state.res.dip - before.res.dip,
+    sci: state.res.sci - before.res.sci,
+    food: state.res.food - before.res.food,
+    tri: afterTri - before.tri,
+    nat: (before.usedFront - state.frontierX.size)
+  };
+  var nextCands = _candsForState(state).length;
+  var score = d.inv*_W.inv + d.art*_W.art + d.ind*_W.ind + d.dip*_W.dip + d.sci*_W.sci + d.food*_W.food + d.tri*_W.tri + d.nat*_W.nat
+            + nextCands*_W.mobility + (nextCands===0? _W.stuck:0);
+
+  // 文化バランス即時評価
+  var beforeMin = Math.min(before.res.food, before.res.sci, before.res.ind);
+  var afterMin  = Math.min(state.res.food, state.res.sci, state.res.ind);
+  score += (afterMin - beforeMin) * 2.5;
+
+  // 開拓展開力ボーナス加点
+  if(typeof bonus!=='undefined') score += bonus;
+
+  // 灰直踏みは減点
+  if(wasEmpty && !whiteMask[i][j]) score -= (turnBefore===0?80:14);
+
+  // ★詰み先読みペナルティ：この手の後に到達できる残り面積が不足していれば強く減点
+  (function(){
+    var future = _reachableFutureCount(state, i, j);           // この手の後、到達できる未選択セル総数
+    var remain = 25 - state.path.length;                        // 残り手数（この手を含めたカウント後）
+    var deficit = remain - future;                              // 未来の面積が足りていない分
+    if (deficit > 0){
+      // 1マス不足につき大きくマイナス（詰みに一直線の手を避ける）
+      score -= 20 * deficit; // 35 → 20 で減少
+    } else {
+      // 余裕があるほど少しだけプラス（行動の余地を好む）
+      var slack = Math.min(5, -deficit);
+      score += 0.8 * slack; // 1.0 → 0.8 で減少
+    }
+  })();
+
+  return {score: score, newBaseline: v};
+}
+
 
   // 人間の次手の値を簡易予測
   function _predictHumanPickValue(B){
@@ -536,7 +528,8 @@
       B = _predictHumanPickValue(r.newBaseline);
       tot += disc*r.score; disc*=df; used++;
     }
-    if(used < 20) tot -= 50 * (20-used);
+var remainAll = 25 - used;
+if (remainAll > 0) tot -= 40 * remainAll;  // ← 1マス不足ごとに-40（強め）
     return tot;
   }
 
@@ -553,81 +546,98 @@
     return best;
   }
 
-  /* ------ AI 手選択 ------ */
-  function aiPick(){
-    var cand = aiCandidates(); if(!cand.length) return null;
+  // AIの手選択
+function aiPick(){
+  var cand = aiCandidates(); if(!cand.length) return null;
 
-    // 初手だけは白限定（灰直踏みを禁止）
-    if (vsAI.ai.path.length === 0) {
-      var whites = [];
-      for (var c=0;c<cand.length;c++){
-        var p=cand[c]; if(whiteMask[p[0]][p[1]]) whites.push(p);
+  // 初手だけは白限定（灰直踏みを禁止）
+  if (vsAI.ai.path.length === 0) {
+    var whites = [];
+    for (var c=0;c<cand.length;c++){
+      var p=cand[c]; if(whiteMask[p[0]][p[1]]) whites.push(p);
+    }
+    if (whites.length) cand = whites;
+  }
+
+  var BV=vsAI.sharedBaseline;
+  var best=null, bestScore=-1e9;
+
+  for(var k=0;k<cand.length;k++){
+    var t=cand[k], i=t[0], j=t[1];
+
+    // 1手の即時利得
+    var sim=_cloneAI(vsAI.ai);
+    var r1=_applyAndScore(sim, i, j, BV);
+    var B2=_predictHumanPickValue(r1.newBaseline);
+
+    // 今の1手を適用した state から最適ツアーで継続期待
+    var tour = _pickBestTourFrom(sim, B2) || [];
+    var cont = _scoreTourFullFrom(sim, tour, B2);
+
+    // 合成
+    var total = r1.score + 0.65*cont;
+
+    // ★ 開拓優先度を強化（開拓優先（初期数手）+ 四隅優先）
+    if (vsAI.ai.path.length <= 3) { // 開拓優先（初期3手）
+      if (i === 0 || i === 4 || j === 0 || j === 4) {  // 四隅や境界を優先
+        total += 18; // 開拓優先 +18点
       }
-      if (whites.length) cand = whites;
     }
 
-    var BV=vsAI.sharedBaseline;
-    var best=null, bestScore=-1e9;
+    // 開拓/研究戦術オーバーライド
+    (function(){
+      var isGrey = !whiteMask[i][j];
+      var hasOddFrontierWhiteAdj = false;
+      var hasEvenWhiteAdj = false;
 
-    for(var k=0;k<cand.length;k++){
-      var t=cand[k], i=t[0], j=t[1];
+      // 隣接に「白 & 値>基準 & 奇数（=即開拓）」/「白 & 値>基準 & 偶数（=即研究）」があるか判定
+      for (var di=-1; di<=1; di++) for (var dj=-1; dj<=1; dj++){
+        if (!di && !dj) continue;
+        var ni=i+di, nj=j+dj;
+        if (ni<0||ni>=5||nj<0||nj>=5) continue;
+        if (!whiteMask[ni][nj]) continue;
+        var vv = Number(vsAI.ai.vals[ni][nj] || '');
+        if (!Number.isFinite(vv)) continue;
+        if (vv > BV && (vv % 2 === 1)) hasOddFrontierWhiteAdj = true;
+        if (vv > BV && (vv % 2 === 0)) hasEvenWhiteAdj      = true;
+      }
 
-      // 1手の即時利得
-      var sim=_cloneAI(vsAI.ai);
-      var r1=_applyAndScore(sim, i, j, BV);
-      var B2=_predictHumanPickValue(r1.newBaseline);
+      // 隣に>基準（奇数 or 偶数）があるのに「グレーへ」は強く抑制
+      if (isGrey && (hasOddFrontierWhiteAdj || hasEvenWhiteAdj)) {
+        total -= 22;   // ←調整幅（20〜26の範囲でOK）
+      }
 
-      // 今の1手を適用した state から最適ツアーで継続期待
-      var tour = _pickBestTourFrom(sim, B2) || [];
-      var cont = _scoreTourFullFrom(sim, tour, B2);
-
-      // 合成
-      var total = r1.score + 0.65*cont;
-
-// --- 戦術オーバーライド：開拓チャンス優先 ---
-(function(){
-  var isGrey = !whiteMask[i][j];
-  var hasOddFrontierWhiteAdj = false;
-  // 隣接に「白 & 値>基準 & 奇数」があれば true
-  for (var di=-1; di<=1; di++) for (var dj=-1; dj<=1; dj++){
-    if (!di && !dj) continue;
-    var ni=i+di, nj=j+dj;
-    if (ni<0||ni>=5||nj<0||nj>=5) continue;
-    if (!whiteMask[ni][nj]) continue; // 白マスのみ対象
-    var vv = Number(vsAI.ai.vals[ni][nj] || '');
-    if (Number.isFinite(vv) && vv > BV && (vv % 2 === 1)) { hasOddFrontierWhiteAdj = true; break; }
-  }
-
-  // グレーに行って基準1に“安易に”リセットする癖を抑える
-  if (isGrey && hasOddFrontierWhiteAdj) {
-    total -= 24; // ←調整幅。-20〜-30で様子を見てOK
-  }
-
-  // 逆に、「白で >基準奇数（＝今すぐ開拓）」なら少しだけ押し上げる
-  var vNow = Number(vsAI.ai.vals[i][j] || '1') || 1;
-  if (!isGrey && vNow > BV && (vNow % 2 === 1)) {
-    total += 6;  // ←小さめブースト。3〜8程度で調整可
-  }
-})();
-
-      // 軽いバイアス：基準超偶数（研究）は少し優遇
+      // 今の候補自体が >基準奇数（=即開拓）なら押し上げる
       var vNow = Number(vsAI.ai.vals[i][j] || '1') || 1;
-      if(vNow>BV && vNow%2===0) total += 1.5;
+      if (!isGrey && vNow > BV && (vNow % 2 === 1)) total += 6;
 
-      if(total>bestScore){ bestScore=total; best=t; }
-    }
-    return best;
+      // 今の候補自体が >基準偶数（=即研究）も少し優遇（灰踏みを上回らせる）
+      if (!isGrey && vNow > BV && (vNow % 2 === 0)) total += 3.5;
+    })();
+
+    // 軽いバイアス：基準超偶数（研究）は少し優遇
+    var vNow = Number(vsAI.ai.vals[i][j] || '1') || 1;
+    if(vNow>BV && vNow%2===0) total += 0;
+
+    if(total>bestScore){ bestScore=total; best=t; }
   }
+  return best;
+}
 
-  /* 開拓番号の書き込み先：近場・可動域優先 */
+
+
+    // 開拓番号の書き込み先：近場・可動域優先（開拓優先度を強化）
   function aiPlaceGrey(dev){
     if(!aiBoard) return;
     var cells=aiBoard.querySelectorAll('.cell');
     var cand=[];
     for(var k=0;k<cells.length;k++){
       var c=cells[k], i=+c.dataset.i, j=+c.dataset.j;
-      if(c.classList.contains('aiGrey') && !vsAI.ai.vals[i][j] && !vsAI.ai.chosen[i][j]){
-        cand.push([i,j]);
+      if(c.classList.contains('grey') && !vsAI.ai.vals[i][j] && !vsAI.ai.chosen[i][j]){
+        // 開拓すべきマスを優先
+        if (i === 0 || i === 4 || j === 0 || j === 4) { // 四隅や境界マスを優先
+          cand.push([i,j]);
+        }
       }
     }
     if(!cand.length) return;
@@ -653,6 +663,7 @@
       var g=window.greyGain(bi,bj); for(var key in g){ aiAddRes(key,g[key]); }
     }
   }
+
 
   function aiTurn(){
     if(!vsAI.enabled) return;
@@ -807,6 +818,39 @@
     };
   }
 
+/* ------ 全面リセットをフック（本体＋AIも初期化） ------ */
+function hookResetButton(){
+  var btn = $('resetAll'); if(!btn) return;
+
+  // 本体のリセット処理（resetAll or btn.onclick）を退避
+  var orig = btn.onclick || (typeof window.resetAll === 'function' ? window.resetAll : function(){});
+
+  btn.onclick = function(e){
+    e.preventDefault();
+
+    // 1) 先に本体のリセットを実行（盤面・研究・基準値12・使用状況12などを初期化）
+    orig.call(btn, e);
+
+    // 2) AI側の共有状態も初期化（人・AIとも 12 のみ）
+    if (vsAI) {
+      vsAI.sharedBaseline = 12;
+      vsAI.usedHuman = new Set([12]);
+      vsAI.usedAI    = new Set([12]);
+      vsAI.fallback = null;
+    }
+
+    // 3) 盤面再構築後にAI盤を描き直し＆セレクター表示を人間側に同期
+    setTimeout(function(){
+      if (vsAI && vsAI.enabled) {
+        buildAIBoardFromMask();   // AI盤の vals/chosen/path/res をまっさらに
+        setSelectorToHuman();     // usedNumbers/baseline の表示を12に
+        hookScoreButton();        // 念のため再フック（安全策）
+        hookResetButton();        // リセットボタンも再フック
+      }
+    }, 0);
+  };
+}
+
   /* ------ モード切替 ------ */
   modeSel.addEventListener('change', function(){
     vsAI.enabled = (modeSel.value==='vsai');
@@ -821,6 +865,7 @@
       setTimeout(function(){
         setSelectorToHuman();
         hookScoreButton();
+        hookResetButton();      // ★追加
       },50);
     }else{
       removeAIPanel();
@@ -872,6 +917,7 @@
     vsAI.sharedBaseline = baselineFromDOM();
     setSelectorToHuman();
     hookScoreButton();
+    hookResetButton();
   },200);
 
 })();
